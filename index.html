@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#9be3ff">
+  <title>Stone vs. Sky</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      color: #17324d;
+      background: #eaf9ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: linear-gradient(180deg, #eaf9ff 0%, #fff8df 100%);
+    }
+
+    .game {
+      width: min(100%, 980px);
+      padding: clamp(16px, 3vw, 28px);
+      border: 3px solid #fff;
+      border-radius: 28px;
+      background: #ffffffd9;
+      box-shadow: 0 16px 45px #276b8726;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      color: #195b86;
+      font-size: clamp(1.55rem, 5vw, 2.4rem);
+      letter-spacing: -0.04em;
+    }
+
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .stat {
+      min-width: 100px;
+      padding: 8px 14px;
+      border-radius: 14px;
+      background: #e6f7ff;
+      text-align: center;
+      font-weight: 800;
+    }
+
+    .stat span {
+      color: #1676a5;
+      font-size: 1.15rem;
+    }
+
+    .instructions {
+      margin: 0 0 14px;
+      color: #456477;
+      line-height: 1.5;
+    }
+
+    .stage {
+      position: relative;
+      overflow: hidden;
+      border: 3px solid #fff;
+      border-radius: 20px;
+      background: #8edcff;
+      box-shadow: 0 5px 16px #24617a22;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    .message {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: #13334f55;
+      text-align: center;
+    }
+
+    .message[hidden] { display: none; }
+
+    .message-card {
+      width: min(100%, 390px);
+      padding: 24px;
+      border: 3px solid #fff;
+      border-radius: 22px;
+      background: #fffef2;
+      box-shadow: 0 10px 24px #17324d35;
+    }
+
+    .message-card h2 {
+      margin: 0 0 8px;
+      color: #195b86;
+      font-size: clamp(1.5rem, 5vw, 2rem);
+    }
+
+    .message-card p { margin: 0 0 16px; line-height: 1.45; }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    button {
+      min-height: 46px;
+      padding: 10px 22px;
+      border: 0;
+      border-radius: 14px;
+      background: #ffb84d;
+      color: #49320f;
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #d98b2a;
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+
+    button:hover { filter: brightness(1.04); transform: translateY(-1px); }
+    button:active { transform: translateY(2px); box-shadow: 0 2px 0 #d98b2a; }
+    button:focus-visible { outline: 3px solid #195b86; outline-offset: 3px; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+    #throwButton { background: #70dc88; box-shadow: 0 4px 0 #36a957; color: #123d22; }
+    #throwButton:active { box-shadow: 0 2px 0 #36a957; }
+
+    @media (max-width: 560px) {
+      body { padding: 10px; }
+      .game { padding: 14px; border-radius: 20px; }
+      header { align-items: flex-start; flex-direction: column; }
+      .stats { justify-content: flex-start; }
+      .stat { min-width: 88px; padding: 7px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="game">
+    <header>
+      <h1>🪨 Stone vs. Sky</h1>
+      <div class="stats" aria-live="polite">
+        <div class="stat">Plane Hits: <span id="score">0</span></div>
+        <div class="stat">Stones Left: <span id="stones">10</span></div>
+      </div>
+    </header>
+    <p class="instructions">
+      Aim with your mouse or finger, then click or tap the play area to throw. Keyboard: use ← / → to aim and Space to throw.
+      You have only 10 stones. Make every throw count!
+    </p>
+    <section class="stage" aria-label="Game area">
+      <canvas id="gameCanvas" width="960" height="540" aria-label="Aim and throw stones at cartoon planes"></canvas>
+      <div class="message" id="message">
+        <div class="message-card">
+          <h2 id="messageTitle">Ready to play?</h2>
+          <p id="messageText">A silly squadron of toy planes is buzzing your meadow! You have 10 stones to protect your picnic. How many planes can you pop?</p>
+          <button id="startButton" type="button">Start Game</button>
+        </div>
+      </div>
+    </section>
+    <div class="controls">
+      <button id="resetButton" type="button" hidden>Restart Game</button>
+    </div>
+  </main>
+
+  <script>
+    "use strict";
+
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const scoreDisplay = document.getElementById("score");
+    const stonesDisplay = document.getElementById("stones");
+    const resetButton = document.getElementById("resetButton");
+    const message = document.getElementById("message");
+    const messageTitle = document.getElementById("messageTitle");
+    const messageText = document.getElementById("messageText");
+    const startButton = document.getElementById("startButton");
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const player = { x: 92, y: 430 };
+    const game = {
+      running: false,
+      score: 0,
+      stones: 10,
+      angle: -0.55,
+      plane: null,
+      rocks: [],
+      particles: [],
+      lastTime: 0,
+      spawnTimer: 0,
+      clouds: [
+        { x: 130, y: 95, size: 1 },
+        { x: 460, y: 145, size: 0.72 },
+        { x: 790, y: 75, size: 1.1 }
+      ]
+    };
+
+    function updateStats() {
+      scoreDisplay.textContent = game.score;
+      stonesDisplay.textContent = game.stones;
+      resetButton.hidden = !game.running;
+    }
+
+    function showMessage(title, text, buttonText) {
+      messageTitle.textContent = title;
+      messageText.textContent = text;
+      startButton.textContent = buttonText;
+      message.hidden = false;
+    }
+
+    function startGame() {
+      game.running = true;
+      game.score = 0;
+      game.stones = 10;
+      game.angle = -0.55;
+      game.plane = null;
+      game.rocks = [];
+      game.particles = [];
+      game.spawnTimer = 0.4;
+      game.lastTime = performance.now();
+      message.hidden = true;
+      updateStats();
+      requestAnimationFrame(loop);
+    }
+
+    function spawnPlane() {
+      const speed = 155 + Math.min(game.score * 9, 100);
+      const y = 135 + Math.random() * 185;
+      game.plane = { x: width + 60, y, speed, phase: Math.random() * Math.PI * 2 };
+    }
+
+    function throwStone() {
+      if (!game.running || game.stones <= 0 || game.rocks.length > 0) return;
+      const speed = 610;
+      game.rocks.push({
+        x: player.x + Math.cos(game.angle) * 29,
+        y: player.y + Math.sin(game.angle) * 29,
+        vx: Math.cos(game.angle) * speed,
+        vy: Math.sin(game.angle) * speed,
+        radius: 9
+      });
+      game.stones -= 1;
+      updateStats();
+    }
+
+    function endGame() {
+      game.running = false;
+      updateStats();
+      const planeText = `${game.score} ${game.score === 1 ? "plane" : "planes"}`;
+      showMessage("Game Over!", `You protected the picnic and popped ${planeText} with your 10 stones. Can you do better next time?`, "Play Again");
+    }
+
+    function burst(x, y) {
+      const colors = ["#ffcf4d", "#ff8c69", "#ffffff", "#7be0a0"];
+      for (let i = 0; i < 16; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 65 + Math.random() * 190;
+        game.particles.push({
+          x, y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 0.55 + Math.random() * 0.35,
+          color: colors[i % colors.length],
+          size: 4 + Math.random() * 7
+        });
+      }
+    }
+
+    function update(dt) {
+      if (!game.plane && game.spawnTimer > 0) {
+        game.spawnTimer -= dt;
+        if (game.spawnTimer <= 0) spawnPlane();
+      }
+
+      if (game.plane) {
+        game.plane.x -= game.plane.speed * dt;
+        game.plane.y += Math.sin(performance.now() / 450 + game.plane.phase) * 18 * dt;
+        if (game.plane.x < -90) {
+          game.plane = null;
+          game.spawnTimer = 0.55;
+        }
+      }
+
+      for (const rock of game.rocks) {
+        rock.x += rock.vx * dt;
+        rock.y += rock.vy * dt;
+        rock.vy += 420 * dt;
+
+        if (game.plane && Math.hypot(rock.x - game.plane.x, rock.y - game.plane.y) < 38) {
+          burst(game.plane.x, game.plane.y);
+          game.plane = null;
+          game.rocks = [];
+          game.score += 1;
+          game.spawnTimer = 0.7;
+          updateStats();
+          break;
+        }
+      }
+
+      game.rocks = game.rocks.filter(rock =>
+        rock.x < width + 30 && rock.y < height + 30 && rock.y > -30
+      );
+
+      if (game.stones === 0 && game.rocks.length === 0 && !game.plane) {
+        endGame();
+      }
+
+      for (const particle of game.particles) {
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt;
+        particle.vy += 180 * dt;
+        particle.life -= dt;
+      }
+      game.particles = game.particles.filter(particle => particle.life > 0);
+    }
+
+    function roundedRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, r);
+      ctx.fill();
+    }
+
+    function drawCloud(x, y, size) {
+      ctx.fillStyle = "#ffffffd9";
+      ctx.beginPath();
+      ctx.arc(x, y, 22 * size, 0, Math.PI * 2);
+      ctx.arc(x + 25 * size, y - 10 * size, 29 * size, 0, Math.PI * 2);
+      ctx.arc(x + 55 * size, y, 21 * size, 0, Math.PI * 2);
+      ctx.rect(x - 1 * size, y, 57 * size, 20 * size);
+      ctx.fill();
+    }
+
+    function drawPlayer() {
+      ctx.save();
+      ctx.translate(player.x, player.y);
+      ctx.fillStyle = "#ef815e";
+      ctx.beginPath();
+      ctx.ellipse(-4, 17, 26, 13, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffd08a";
+      ctx.beginPath();
+      ctx.arc(0, -3, 21, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(7, -8, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#17324d";
+      ctx.beginPath();
+      ctx.arc(9, -8, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#9c583c";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(9, 0, 6, 0.2, 1.3);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.strokeStyle = "#195b86aa";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 8]);
+      ctx.beginPath();
+      ctx.moveTo(player.x + Math.cos(game.angle) * 35, player.y + Math.sin(game.angle) * 35);
+      ctx.lineTo(player.x + Math.cos(game.angle) * 140, player.y + Math.sin(game.angle) * 140);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function drawPlane() {
+      if (!game.plane) return;
+      const { x, y } = game.plane;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(-1, 1);
+      ctx.fillStyle = "#f36f70";
+      ctx.beginPath();
+      ctx.moveTo(-34, 0);
+      ctx.lineTo(-51, -14);
+      ctx.lineTo(-45, 0);
+      ctx.lineTo(-51, 14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#ffca58";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 39, 13, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ef7971";
+      ctx.beginPath();
+      ctx.moveTo(-6, 1);
+      ctx.lineTo(17, -34);
+      ctx.lineTo(23, 1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-6, 1);
+      ctx.lineTo(17, 31);
+      ctx.lineTo(23, 1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#8ee5ee";
+      ctx.beginPath();
+      ctx.ellipse(17, -3, 8, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function draw() {
+      const sky = ctx.createLinearGradient(0, 0, 0, height);
+      sky.addColorStop(0, "#75d5ff");
+      sky.addColorStop(0.78, "#d5f7ff");
+      sky.addColorStop(0.78, "#8bd37c");
+      sky.addColorStop(1, "#58b96b");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, width, height);
+
+      for (const cloud of game.clouds) drawCloud(cloud.x, cloud.y, cloud.size);
+
+      ctx.fillStyle = "#73c871";
+      ctx.beginPath();
+      ctx.moveTo(0, 445);
+      ctx.quadraticCurveTo(270, 405, 520, 455);
+      ctx.quadraticCurveTo(760, 495, 960, 435);
+      ctx.lineTo(960, 540);
+      ctx.lineTo(0, 540);
+      ctx.closePath();
+      ctx.fill();
+
+      for (let i = 0; i < 10; i++) {
+        const x = 25 + i * 99;
+        ctx.fillStyle = i % 2 ? "#fff3ad" : "#ffffff";
+        ctx.beginPath();
+        ctx.arc(x, 490 + (i % 3) * 13, 4, 0, Math.PI * 2);
+        ctx.arc(x + 6, 487 + (i % 3) * 13, 3, 0, Math.PI * 2);
+        ctx.arc(x + 10, 493 + (i % 3) * 13, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      drawPlayer();
+      drawPlane();
+
+      for (const rock of game.rocks) {
+        ctx.fillStyle = "#6b7783";
+        ctx.strokeStyle = "#43515d";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(rock.x, rock.y, rock.radius + 3, rock.radius, -0.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#a7b0b7";
+        ctx.beginPath();
+        ctx.arc(rock.x - 3, rock.y - 3, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      for (const particle of game.particles) {
+        ctx.globalAlpha = Math.max(0, particle.life);
+        ctx.fillStyle = particle.color;
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      if (game.running) {
+        ctx.fillStyle = "#174868";
+        ctx.font = "bold 17px Trebuchet MS, sans-serif";
+        ctx.fillText("Aim, then throw!", 20, 32);
+      }
+    }
+
+    function loop(now) {
+      if (!game.running) return;
+      const dt = Math.min((now - game.lastTime) / 1000, 0.04);
+      game.lastTime = now;
+      update(dt);
+      draw();
+      if (game.running) requestAnimationFrame(loop);
+    }
+
+    function setAimFromPointer(event) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (event.clientX - rect.left) * width / rect.width;
+      const y = (event.clientY - rect.top) * height / rect.height;
+      const dx = x - player.x;
+      const dy = y - player.y;
+      game.angle = Math.max(-1.45, Math.min(-0.08, Math.atan2(dy, dx)));
+      draw();
+    }
+
+    canvas.addEventListener("pointermove", setAimFromPointer);
+    canvas.addEventListener("pointerdown", event => {
+      event.preventDefault();
+      setAimFromPointer(event);
+      if (game.running) throwStone();
+    });
+
+    document.addEventListener("keydown", event => {
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight" || event.code === "Space") {
+        event.preventDefault();
+      }
+      if (event.key === "ArrowLeft") game.angle = Math.max(-1.45, game.angle - 0.06);
+      if (event.key === "ArrowRight") game.angle = Math.min(-0.08, game.angle + 0.06);
+      if (event.code === "Space") throwStone();
+      if (game.running) draw();
+    });
+
+    resetButton.addEventListener("click", () => {
+      game.running = false;
+      updateStats();
+      showMessage("Ready to play?", "A silly squadron of toy planes is buzzing your meadow! You have 10 stones to protect your picnic. How many planes can you pop?", "Start Game");
+    });
+    startButton.addEventListener("click", startGame);
+    updateStats();
+    draw();
+  </script>
+</body>
+</html>
